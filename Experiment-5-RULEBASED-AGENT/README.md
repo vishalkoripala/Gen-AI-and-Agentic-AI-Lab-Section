@@ -1,4 +1,8 @@
-# CASEFILE --- AI Symptom Reasoning Agent
+## 🚀 Live Application
+
+👉 **[OPEN CASEFILE — LIVE APPLICATION](https://vishalkoripala.github.io/Gen-AI-and-Agentic-AI-Lab-Section/)**
+
+> Try the live rule-based AI symptom reasoning agent directly in your browser.# CASEFILE --- AI Symptom Reasoning Agent
 
 > **An educational rule-based AI agent demonstrating knowledge
 > representation, forward chaining, weighted rule reasoning, and
