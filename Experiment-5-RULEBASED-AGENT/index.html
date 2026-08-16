@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CASEFILE — AI Symptom Reasoning Agent</title>
+<meta name="description" content="A rule-based AI agent that reasons about possible illnesses from reported symptoms using forward chaining over a weighted knowledge base.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#050B16;
+    --void-2:#081226;
+    --glass:linear-gradient(180deg, rgba(24,42,72,0.55), rgba(9,17,32,0.6));
+    --glass-border:rgba(94,190,255,0.16);
+    --glass-border-strong:rgba(94,190,255,0.4);
+    --ink:#E9F2FF;
+    --ink-dim:#7C8CAD;
+    --cyan:#3FD8FF;
+    --cyan-dim:#1B8FB8;
+    --violet:#B78CFF;
+    --pulse:#FF6F94;
+    --line:rgba(124,140,173,0.18);
+    --font-display:'Space Grotesk', -apple-system, sans-serif;
+    --font-body:'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono:'JetBrains Mono', 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--void);
+    color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:'';
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(94,190,255,0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(94,190,255,0.028) 1px, transparent 1px);
+    background-size:46px 46px;
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%);
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%);
+  }
+  #neuralBg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55;}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px;position:relative;z-index:2;}
+
+  /* STATUS PILL */
+  .status-pill{
+    display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);
+    font-size:11px;letter-spacing:.12em;color:var(--cyan);background:rgba(63,216,255,0.08);
+    border:1px solid rgba(63,216,255,0.28);border-radius:999px;padding:6px 14px;margin-bottom:22px;
+  }
+  .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 10px 2px rgba(63,216,255,0.8);animation:pulseDot 1.8s ease-in-out infinite;}
+  @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+  /* HERO */
+  .hero{padding:76px 0 52px;border-bottom:1px solid var(--line);animation:fadeUp .7s ease both;}
+  .eyebrow{
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--violet);margin:0 0 18px;
+  }
+  .ecg{width:190px;height:30px;display:block;margin:0 0 14px;}
+  .ecg-path{
+    stroke:var(--pulse);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;
+    stroke-dasharray:360;stroke-dashoffset:360;animation:ecgDraw 2.6s ease-in-out infinite;
+    filter:drop-shadow(0 0 6px rgba(255,111,148,0.6));
+  }
+  @keyframes ecgDraw{0%{stroke-dashoffset:360;}60%{stroke-dashoffset:0;}100%{stroke-dashoffset:0;}}
+  .wordmark{
+    font-family:var(--font-display);font-weight:700;font-size:clamp(42px,7vw,72px);
+    letter-spacing:-0.02em;margin:0 0 20px;
+    background:linear-gradient(135deg,#F2FAFF 0%, var(--cyan) 55%, var(--violet) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 26px rgba(63,216,255,0.22));
+  }
+  .lede{max-width:58ch;font-size:17px;color:var(--ink-dim);margin:0;}
+
+  /* PANELS */
+  .panel{padding:58px 0;border-bottom:1px solid var(--line);}
+  .panel-head h2{
+    font-family:var(--font-display);font-weight:600;font-size:24px;margin:0 0 6px;color:var(--ink);
+    letter-spacing:-.01em;
+  }
+  .panel-head h2 .num{color:var(--cyan);font-family:var(--font-mono);font-weight:500;font-size:16px;margin-right:4px;}
+  .panel-head p{margin:0 0 30px;color:var(--ink-dim);font-size:14.5px;}
+
+  /* GLASS */
+  .glass{
+    background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;
+    backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%);
+    box-shadow:0 24px 60px -28px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .intake-glass{padding:28px;}
+
+  /* QUICK CASES */
+  .quick-cases{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:22px;}
+  .quick-cases button{
+    font-family:var(--font-mono);font-size:12.5px;padding:9px 15px;border-radius:999px;
+    border:1px solid rgba(124,140,173,0.28);background:rgba(124,140,173,0.06);color:var(--ink-dim);
+    cursor:pointer;transition:all .18s;
+  }
+  .quick-cases button:hover{border-color:var(--violet);color:var(--ink);background:rgba(183,140,255,0.08);}
+  .quick-cases button.ghost{opacity:.6;}
+  .quick-cases button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  /* SEARCH */
+  .search{
+    width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(5,11,22,0.5);color:var(--ink);font-family:var(--font-body);font-size:15px;margin-bottom:18px;
+  }
+  .search:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+  .search::placeholder{color:var(--ink-dim);}
+
+  /* CHIP GRID */
+  .chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px;max-height:250px;overflow-y:auto;padding:4px 2px;}
+  .chip{
+    font-family:var(--font-mono);font-size:12.5px;padding:8px 14px;border-radius:8px;
+    border:1px solid rgba(124,140,173,0.25);background:rgba(124,140,173,0.06);color:var(--ink-dim);
+    cursor:pointer;transition:all .18s;
+  }
+  .chip:hover{border-color:var(--cyan-dim);color:var(--ink);background:rgba(63,216,255,0.07);}
+  .chip.active{
+    background:rgba(63,216,255,0.16);border-color:var(--cyan);color:var(--cyan);font-weight:500;
+    box-shadow:0 0 16px -5px rgba(63,216,255,0.6);
+  }
+  .chip:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  /* SELECTED ROW */
+  .selected-row{margin-bottom:26px;min-height:38px;}
+  .selected-label{
+    font-family:var(--font-mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--ink-dim);display:block;margin-bottom:10px;
+  }
+  .selected-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .selected-chips .chip{
+    background:rgba(183,140,255,0.12);border-color:rgba(183,140,255,0.5);color:var(--ink);
+    display:flex;align-items:center;gap:8px;box-shadow:0 0 14px -6px rgba(183,140,255,0.6);
+  }
+  .selected-chips .chip button{background:none;border:none;color:var(--violet);cursor:pointer;font-size:15px;padding:0;line-height:1;}
+  .empty-note{color:var(--ink-dim);font-size:13px;font-style:italic;margin:0;}
+
+  /* RUN BUTTON */
+  .run-btn{
+    font-family:var(--font-display);font-weight:600;font-size:14.5px;letter-spacing:.02em;
+    padding:16px 30px;border-radius:12px;border:1px solid var(--cyan);
+    background:linear-gradient(135deg, rgba(63,216,255,0.28), rgba(183,140,255,0.22));
+    color:var(--ink);cursor:pointer;box-shadow:0 0 26px -8px rgba(63,216,255,0.65);
+    transition:transform .15s, box-shadow .15s;
+  }
+  .run-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 0 34px -4px rgba(63,216,255,0.85);}
+  .run-btn:disabled{opacity:.35;box-shadow:none;cursor:not-allowed;border-color:var(--line);background:none;}
+  .run-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  /* STEPPER */
+  .stepper-section{padding:38px 0;}
+  .stepper{display:flex;align-items:flex-start;justify-content:center;}
+  .step{display:flex;flex-direction:column;align-items:center;gap:9px;opacity:.35;transition:opacity .35s;width:110px;}
+  .step.active{opacity:1;}
+  .step .dot{width:12px;height:12px;border-radius:50%;background:var(--line);transition:background .35s, box-shadow .35s;}
+  .step.active .dot{background:var(--cyan);box-shadow:0 0 4px 2px rgba(63,216,255,0.6), 0 0 18px 4px rgba(63,216,255,0.35);}
+  .step .label{font-family:var(--font-mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);text-align:center;}
+  .step.active .label{color:var(--cyan);}
+  .track{width:68px;height:1px;background:var(--line);margin:6px 4px 0;position:relative;overflow:hidden;}
+  .track::after{
+    content:'';position:absolute;inset:0;background:linear-gradient(90deg, transparent, var(--cyan), transparent);
+    transform:translateX(-100%);transition:transform .5s ease;
+  }
+  .track.lit::after{transform:translateX(100%);}
+
+  /* RESULTS */
+  .results-meta{color:var(--ink-dim);font-size:13.5px;margin:0 0 22px;font-family:var(--font-mono);}
+  .results-list{display:flex;flex-direction:column;gap:18px;}
+  .case-card{padding:26px;animation:rise .5s ease both;}
+  .case-card-head{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:2px;}
+  .case-num{
+    font-family:var(--font-mono);font-size:11px;color:var(--violet);letter-spacing:.08em;
+    border:1px solid rgba(183,140,255,0.35);border-radius:6px;padding:3px 8px;
+  }
+  .case-card-head h3{font-family:var(--font-display);font-weight:600;font-size:23px;margin:0;color:var(--ink);flex:1;min-width:160px;}
+  .gauge-wrap{position:relative;width:60px;height:60px;flex-shrink:0;}
+  .gauge{display:block;}
+  .gauge-track{fill:none;stroke:var(--line);stroke-width:5;}
+  .gauge-arc{fill:none;stroke:var(--cyan);stroke-width:5;stroke-linecap:round;
+    filter:drop-shadow(0 0 6px rgba(63,216,255,0.75));transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1);}
+  .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-size:13px;color:var(--ink);font-weight:500;}
+  .likelihood-label{
+    font-size:11.5px;color:var(--ink-dim);margin:14px 0 18px;text-transform:uppercase;
+    letter-spacing:.07em;font-family:var(--font-mono);
+  }
+  .evidence-row{margin-bottom:15px;}
+  .evidence-label{
+    display:block;font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.08em;color:var(--ink-dim);margin-bottom:8px;
+  }
+  .tags{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag{font-family:var(--font-mono);font-size:11.5px;padding:5px 10px;border-radius:6px;border:1px solid var(--line);}
+  .tag.matched{background:rgba(183,140,255,0.12);border-color:rgba(183,140,255,0.45);color:var(--violet);}
+  .tag.missing{color:var(--ink-dim);}
+  .why-toggle{
+    background:none;border:none;color:var(--cyan);font-family:var(--font-mono);font-size:11.5px;
+    cursor:pointer;padding:0;margin-bottom:4px;
+  }
+  .why-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+  .why-body{padding:15px 0 4px;border-top:1px solid var(--line);margin-top:12px;}
+  .formula{
+    font-family:var(--font-mono);font-size:12.5px;color:var(--ink-dim);background:rgba(5,11,22,0.6);
+    border:1px solid var(--line);padding:12px 14px;border-radius:8px;margin:12px 0 0;
+  }
+  .advice{font-size:13.5px;color:var(--ink);margin:15px 0 0;padding-top:15px;border-top:1px solid var(--line);}
+  .advice-label{color:var(--cyan);font-weight:500;}
+
+  .no-match{padding:36px 28px;text-align:center;border:1px dashed var(--glass-border-strong);border-radius:20px;}
+  .no-match p:first-child{font-family:var(--font-display);font-size:19px;margin:0 0 8px;color:var(--violet);font-weight:600;}
+  .no-match-sub{color:var(--ink-dim);font-size:13.5px;margin:0 auto;max-width:52ch;}
+
+  /* AI AGENT FALLBACK — deliberately distinct from rule-based cards */
+  .ai-fallback{padding:24px 26px;margin-top:16px;border:1px dashed rgba(245,185,66,0.4);border-radius:20px;}
+  .ai-fallback-head{margin-bottom:14px;}
+  .ai-badge{
+    font-family:var(--font-mono);font-size:10.5px;letter-spacing:.09em;color:#F5B942;
+    background:rgba(245,185,66,0.1);border:1px solid rgba(245,185,66,0.35);border-radius:999px;
+    padding:5px 12px;
+  }
+  .ai-loading{display:flex;align-items:center;gap:9px;color:var(--ink-dim);font-family:var(--font-mono);font-size:12.5px;}
+  .ai-text{font-size:14px;color:var(--ink);line-height:1.65;margin:0;white-space:pre-wrap;}
+  .ai-error{font-size:12.5px;color:var(--ink-dim);line-height:1.6;margin:0;font-style:italic;}
+
+  /* KB SECTION */
+  .disclosure-toggle{
+    width:100%;display:flex;justify-content:space-between;align-items:center;background:none;
+    border:none;color:var(--ink);font-family:var(--font-display);font-size:20px;font-weight:600;
+    cursor:pointer;padding:0;
+  }
+  .disclosure-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:4px;}
+  .chev{transition:transform .2s;color:var(--cyan);font-family:var(--font-body);}
+  .disclosure-toggle[aria-expanded="true"] .chev{transform:rotate(180deg);}
+  .kb-body{margin-top:26px;overflow-x:auto;}
+  .kb-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px;}
+  .kb-table th{
+    text-align:left;color:var(--violet);font-weight:500;padding:10px 12px;
+    border-bottom:1px solid var(--line);text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;
+  }
+  .kb-table td{padding:12px;border-bottom:1px solid rgba(124,140,173,0.1);vertical-align:top;color:var(--ink);}
+  .kb-table tr:hover td{background:rgba(63,216,255,0.04);}
+  .kb-note{margin-top:16px;color:var(--ink-dim);font-family:var(--font-mono);font-size:11.5px;}
+
+  /* FOOTER */
+  .site-footer{padding:32px 0 56px;}
+  .disclaimer{font-size:12.5px;color:var(--ink-dim);max-width:70ch;margin:0;}
+  .disclaimer strong{color:var(--pulse);}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important;}
+  }
+  @media (max-width:640px){
+    .hero{padding:52px 0 36px;}
+    .wordmark{font-size:38px;}
+    .panel{padding:42px 0;}
+    .track{width:26px;}
+    .step{width:78px;}
+    .case-card{padding:20px;}
+    .intake-glass{padding:20px;}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="neuralBg"></canvas>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="status-pill"><span class="pulse-dot"></span>AGENT READY</div>
+    <svg class="ecg" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+      <path class="ecg-path" d="M0,20 L74,20 L83,20 L91,3 L100,37 L109,20 L120,20 L240,20"/>
+    </svg>
+    <p class="eyebrow">AI diagnostic reasoning agent</p>
+    <h1 class="wordmark">CASEFILE</h1>
+    <p class="lede">Select the symptoms a patient reports. The agent perceives them as facts, reasons over a weighted rule set by forward chaining, and returns ranked, explained conclusions — every score below is computed live, nothing is looked up.</p>
+  </div>
+</header>
+
+<section class="panel intake">
+  <div class="wrap">
+    <div class="panel-head">
+      <h2><span class="num">01</span>Case intake</h2>
+      <p>Choose symptoms, or load a quick case. 38 known symptoms across 10 conditions.</p>
+    </div>
+
+    <div class="glass intake-glass">
+      <div class="quick-cases">
+        <button type="button" data-case="covid">COVID-like</button>
+        <button type="button" data-case="dengue">Dengue-like</button>
+        <button type="button" data-case="cold">Common cold</button>
+        <button type="button" data-case="inconclusive">Inconclusive case</button>
+        <button type="button" data-case="clear" class="ghost">Clear</button>
+      </div>
+
+      <input type="text" id="symptomSearch" class="search" placeholder="Search symptoms…" aria-label="Search symptoms">
+
+      <div id="chipGrid" class="chip-grid" role="group" aria-label="Available symptoms"></div>
+
+      <div class="selected-row">
+        <span class="selected-label">Selected (<span id="selCount">0</span>)</span>
+        <div id="selectedChips" class="selected-chips"></div>
+      </div>
+
+      <button type="button" id="runBtn" class="run-btn" disabled>Run inference →</button>
+    </div>
+  </div>
+</section>
+
+<section class="stepper-section">
+  <div class="wrap">
+    <div class="stepper" id="stepper">
+      <div class="step" data-step="perceive"><span class="dot"></span><span class="label">Perceive</span></div>
+      <div class="track" data-track="1"></div>
+      <div class="step" data-step="reason"><span class="dot"></span><span class="label">Reason</span></div>
+      <div class="track" data-track="2"></div>
+      <div class="step" data-step="act"><span class="dot"></span><span class="label">Act</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel results-section" id="resultsSection" hidden aria-live="polite">
+  <div class="wrap">
+    <div class="panel-head">
+      <h2><span class="num">02</span>Reasoned conclusions</h2>
+      <p class="results-meta" id="resultsMeta"></p>
+    </div>
+    <div id="resultsList" class="results-list"></div>
+  </div>
+</section>
+
+<section class="panel kb-section">
+  <div class="wrap">
+    <button type="button" class="disclosure-toggle" id="kbToggle" aria-expanded="false" aria-controls="kbBody">
+      <span><span style="color:var(--cyan);font-family:var(--font-mono);font-weight:500;font-size:15px;">03</span> Open the rule set (<span id="kbCount">10</span> rules)</span>
+      <span class="chev">▾</span>
+    </button>
+    <div id="kbBody" class="kb-body" hidden></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="disclaimer"><strong>Not a diagnostic device.</strong> This is an educational forward-chaining rule engine built for a knowledge-representation exercise. It cannot replace a clinician. Seek professional care for real symptoms.</p>
+  </div>
+</footer>
+
+<script>
+// =============================================================
+// NEURAL NETWORK BACKGROUND — purely decorative, no logic here
+// =============================================================
+(function initNeuralBg(){
+  try{
+  const canvas = document.getElementById('neuralBg');
+  const ctx = canvas && canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return; // canvas unsupported/blocked (e.g. some privacy modes) — skip decoration, app still works
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let w, h, particles;
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = Math.min(window.innerHeight, 760);
+  }
+  function initParticles(){
+    const count = Math.max(24, Math.min(55, Math.floor(w / 30)));
+    particles = Array.from({length: count}, () => ({
+      x: Math.random()*w, y: Math.random()*h,
+      vx: (Math.random()-0.5)*0.22, vy: (Math.random()-0.5)*0.22
+    }));
+  }
+  function frame(){
+    ctx.clearRect(0,0,w,h);
+    for (let i=0;i<particles.length;i++){
+      const p = particles[i];
+      if (!reduceMotion){
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+      }
+      for (let j=i+1;j<particles.length;j++){
+        const q = particles[j];
+        const dx = p.x-q.x, dy = p.y-q.y;
+        const dist = Math.sqrt(dx*dx+dy*dy);
+        if (dist < 130){
+          ctx.strokeStyle = 'rgba(63,216,255,' + (0.14*(1-dist/130)) + ')';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+        }
+      }
+      ctx.fillStyle = 'rgba(63,216,255,0.55)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, Math.PI*2); ctx.fill();
+    }
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+  window.addEventListener('resize', () => { resize(); initParticles(); });
+  resize(); initParticles(); frame();
+  } catch(e){ /* decorative only — never let this block the app below */ }
+})();
+
+// =============================================================
+// KNOWLEDGE BASE — unchanged from the tested version
+// =============================================================
+const KNOWLEDGE_BASE = {
+  "Common Cold": {
+    symptoms: { runny_nose:0.9, sneezing:0.85, sore_throat:0.6, mild_cough:0.6, nasal_congestion:0.8, mild_headache:0.3 },
+    advice: "Usually self-limiting. Rest, fluids, and OTC cold relief are typically enough."
+  },
+  "Influenza (Flu)": {
+    symptoms: { high_fever:0.85, body_ache:0.9, fatigue:0.8, chills:0.75, headache:0.6, dry_cough:0.65, sore_throat:0.4 },
+    advice: "Rest and fluids; see a doctor if fever is very high or lasts more than a few days."
+  },
+  "COVID-19": {
+    symptoms: { fever:0.7, dry_cough:0.75, fatigue:0.7, loss_of_taste_smell:0.9, difficulty_breathing:0.7, sore_throat:0.4, body_ache:0.5 },
+    advice: "Isolate, get tested, and seek prompt medical care if breathing becomes difficult."
+  },
+  "Malaria": {
+    symptoms: { high_fever:0.85, chills:0.85, sweating:0.8, headache:0.6, nausea:0.55, muscle_pain:0.5, fatigue:0.5 },
+    advice: "Needs a blood test to confirm. See a doctor promptly, especially in endemic areas."
+  },
+  "Typhoid Fever": {
+    symptoms: { prolonged_fever:0.9, weakness:0.7, stomach_pain:0.65, headache:0.55, loss_of_appetite:0.6, constipation:0.4, diarrhea:0.4 },
+    advice: "Requires lab confirmation and antibiotics prescribed by a physician."
+  },
+  "Dengue Fever": {
+    symptoms: { high_fever:0.85, severe_headache:0.75, joint_pain:0.85, skin_rash:0.6, nausea:0.5, pain_behind_eyes:0.8, muscle_pain:0.6 },
+    advice: "Monitor for warning signs (bleeding, severe pain) and seek medical attention."
+  },
+  "Migraine": {
+    symptoms: { severe_headache:0.9, nausea:0.6, sensitivity_to_light:0.85, sensitivity_to_sound:0.75, visual_disturbance:0.5 },
+    advice: "Rest in a dark, quiet room. See a doctor if this is a new or unusually severe pattern."
+  },
+  "Gastroenteritis": {
+    symptoms: { nausea:0.75, vomiting:0.8, diarrhea:0.85, stomach_cramps:0.75, mild_fever:0.4 },
+    advice: "Stay hydrated with oral rehydration solution; see a doctor if it persists beyond 2 days."
+  },
+  "Asthma": {
+    symptoms: { difficulty_breathing:0.85, wheezing:0.9, chest_tightness:0.8, cough:0.6 },
+    advice: "Use a prescribed inhaler if diagnosed; seek emergency care if breathing is severely impaired."
+  },
+  "Chickenpox": {
+    symptoms: { itchy_rash:0.9, fever:0.5, fatigue:0.4, loss_of_appetite:0.4 },
+    advice: "Highly contagious - isolate the patient. See a doctor, especially for adults or high fever."
+  }
+};
+
+const MIN_MATCHED_SYMPTOMS = 2;
+const CONFIDENCE_THRESHOLD = 0.30;
+const ALL_SYMPTOMS = [...new Set(Object.values(KNOWLEDGE_BASE).flatMap(r => Object.keys(r.symptoms)))].sort();
+const DISPLAY_OVERRIDES = { loss_of_taste_smell: "loss of taste or smell" };
+
+function formatSymptom(s){ return DISPLAY_OVERRIDES[s] || s.replace(/_/g, ' '); }
+
+// =============================================================
+// REASONING ENGINE — forward chaining, unchanged from the tested version
+// =============================================================
+function reason(selectedSet){
+  const conclusions = [];
+  for (const [disease, rule] of Object.entries(KNOWLEDGE_BASE)){
+    const matched = {}, missing = {};
+    for (const [s,w] of Object.entries(rule.symptoms)){
+      if (selectedSet.has(s)) matched[s] = w; else missing[s] = w;
+    }
+    const matchedCount = Object.keys(matched).length;
+    if (matchedCount === 0) continue;
+    const matchedWeight = Object.values(matched).reduce((a,b)=>a+b,0);
+    const totalWeight = Object.values(rule.symptoms).reduce((a,b)=>a+b,0);
+    const confidence = matchedWeight/totalWeight;
+    if (matchedCount >= MIN_MATCHED_SYMPTOMS && confidence >= CONFIDENCE_THRESHOLD){
+      conclusions.push({ disease, confidence, matched, missing, matchedWeight, totalWeight, advice: rule.advice });
+    }
+  }
+  conclusions.sort((a,b)=>b.confidence-a.confidence);
+  return conclusions;
+}
+function likelihoodLabel(c){ return c>=0.7 ? "High likelihood" : c>=0.5 ? "Moderate likelihood" : "Low likelihood"; }
+
+// =============================================================
+// AI AGENT FALLBACK — used only when the rule engine finds
+// nothing confident. Calls Claude directly from the browser via
+// the same mechanism "Claude in Claude" artifacts use, so this
+// needs no backend and no API key of its own. It only works
+// while this page is running inside Claude.ai as an artifact —
+// a standalone deploy (Netlify, GitHub Pages, etc.) has no route
+// to that authenticated path, so it fails gracefully there.
+// =============================================================
+let aiFallbackRequestId = 0;
+
+async function consultAIAgent(selectedSet){
+  const symptomList = [...selectedSet].map(formatSymptom).join(', ');
+  const prompt = "You are the fallback layer of an educational rule-based symptom-checking AI agent " +
+    "(a student project demonstrating knowledge representation and forward chaining). Its rule engine " +
+    "checked these reported symptoms against a 10-disease knowledge base and found no confident match: " +
+    symptomList + ". In under 100 words, plain text, no markdown: suggest 2-3 general possibilities or " +
+    "categories worth discussing with a doctor, flag if anything sounds urgent, and close by recommending " +
+    "professional evaluation. This is not a diagnosis and must not be presented as one.";
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    if (!response.ok) throw new Error("API returned " + response.status);
+    const data = await response.json();
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+    if (!text) throw new Error("empty response");
+    return { ok: true, text };
+  } catch(err){
+    return { ok: false, error: (err && err.message) || "request failed" };
+  }
+}
+
+function triggerAIFallback(){
+  const myRequestId = ++aiFallbackRequestId;
+
+  const container = document.createElement('div');
+  container.className = 'ai-fallback glass';
+  container.innerHTML =
+    '<div class="ai-fallback-head"><span class="ai-badge">AI AGENT · GENERATIVE FALLBACK, NOT RULE-BASED</span></div>' +
+    '<div class="ai-fallback-body" id="aiFallbackBody">' +
+      '<span class="ai-loading"><span class="pulse-dot"></span>Consulting the AI agent for a broader read…</span>' +
+    '</div>';
+  resultsList.appendChild(container);
+
+  consultAIAgent(state.selected).then(result => {
+    if (myRequestId !== aiFallbackRequestId) return; // superseded by a newer run
+    const body = document.getElementById('aiFallbackBody');
+    if (!body) return;
+    body.innerHTML = '';
+    if (result.ok){
+      const p = document.createElement('p');
+      p.className = 'ai-text';
+      p.textContent = result.text;
+      body.appendChild(p);
+    } else {
+      const p = document.createElement('p');
+      p.className = 'ai-error';
+      p.textContent = 'AI agent unavailable here (' + result.error + '). This fallback calls Claude directly ' +
+        'and only works when this page is open inside Claude.ai as an artifact — a standalone deployment has ' +
+        'no access to that API path.';
+      body.appendChild(p);
+    }
+  });
+}
+
+// =============================================================
+// UI STATE + RENDERING
+// =============================================================
+const state = { selected: new Set() };
+const PRESETS = {
+  covid: ["fever","dry_cough","loss_of_taste_smell","fatigue","sore_throat"],
+  dengue: ["high_fever","joint_pain","pain_behind_eyes","skin_rash","severe_headache"],
+  cold: ["runny_nose","sneezing","sore_throat","nasal_congestion"],
+  inconclusive: ["loss_of_appetite","headache"]
+};
+
+const chipGrid = document.getElementById('chipGrid');
+const selectedChips = document.getElementById('selectedChips');
+const selCount = document.getElementById('selCount');
+const runBtn = document.getElementById('runBtn');
+const search = document.getElementById('symptomSearch');
+const resultsSection = document.getElementById('resultsSection');
+const resultsList = document.getElementById('resultsList');
+const resultsMeta = document.getElementById('resultsMeta');
+const stepper = document.getElementById('stepper');
+
+function renderChipGrid(filter=''){
+  const f = filter.trim().toLowerCase();
+  chipGrid.innerHTML = '';
+  ALL_SYMPTOMS.filter(s => formatSymptom(s).includes(f)).forEach(s=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip' + (state.selected.has(s) ? ' active' : '');
+    btn.textContent = formatSymptom(s);
+    btn.dataset.symptom = s;
+    btn.setAttribute('aria-pressed', state.selected.has(s) ? 'true' : 'false');
+    btn.addEventListener('click', () => toggleSymptom(s));
+    chipGrid.appendChild(btn);
+  });
+}
+
+function renderSelected(){
+  selCount.textContent = state.selected.size;
+  selectedChips.innerHTML = '';
+  if (state.selected.size === 0){
+    const p = document.createElement('p');
+    p.className = 'empty-note';
+    p.textContent = 'None yet — choose from the list above or load a quick case.';
+    selectedChips.appendChild(p);
+  } else {
+    [...state.selected].sort().forEach(s=>{
+      const chip = document.createElement('span');
+      chip.className = 'chip active';
+      const label = document.createElement('span');
+      label.textContent = formatSymptom(s) + ' ';
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = '×';
+      x.setAttribute('aria-label', 'Remove ' + formatSymptom(s));
+      x.addEventListener('click', () => toggleSymptom(s));
+      chip.appendChild(label);
+      chip.appendChild(x);
+      selectedChips.appendChild(chip);
+    });
+  }
+  runBtn.disabled = state.selected.size === 0;
+}
+
+function toggleSymptom(s){
+  if (state.selected.has(s)) state.selected.delete(s); else state.selected.add(s);
+  chipGrid.querySelectorAll('.chip').forEach(btn=>{
+    const active = state.selected.has(btn.dataset.symptom);
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  renderSelected();
+}
+
+function syncChipGridState(){
+  chipGrid.querySelectorAll('.chip').forEach(btn=>{
+    const active = state.selected.has(btn.dataset.symptom);
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+search.addEventListener('input', () => renderChipGrid(search.value));
+
+document.querySelectorAll('.quick-cases button[data-case]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const key = btn.dataset.case;
+    state.selected = key === 'clear' ? new Set() : new Set(PRESETS[key]);
+    syncChipGridState();
+    renderSelected();
+  });
+});
+
+function runStepperThen(callback){
+  const steps = stepper.querySelectorAll('.step');
+  const tracks = stepper.querySelectorAll('.track');
+  steps.forEach(s=>s.classList.remove('active'));
+  tracks.forEach(t=>t.classList.remove('lit'));
+  const delays = [0, 380, 760];
+  steps.forEach((s,i)=> setTimeout(()=> s.classList.add('active'), delays[i]));
+  setTimeout(()=> tracks[0].classList.add('lit'), 200);
+  setTimeout(()=> tracks[1].classList.add('lit'), 580);
+  setTimeout(callback, 1080);
+}
+
+runBtn.addEventListener('click', ()=>{
+  runBtn.disabled = true;
+  runStepperThen(()=>{
+    const conclusions = reason(state.selected);
+    renderResults(conclusions);
+    runBtn.disabled = state.selected.size === 0;
+  });
+});
+
+function radialGauge(confidence){
+  const r = 26, c = 2*Math.PI*r;
+  const offset = c * (1 - confidence);
+  return '<div class="gauge-wrap">' +
+    '<svg class="gauge" viewBox="0 0 60 60" width="60" height="60">' +
+      '<circle class="gauge-track" cx="30" cy="30" r="' + r + '"/>' +
+      '<circle class="gauge-arc" cx="30" cy="30" r="' + r + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + offset + '" transform="rotate(-90 30 30)"/>' +
+    '</svg>' +
+    '<span class="pct">' + Math.round(confidence*100) + '%</span>' +
+  '</div>';
+}
+
+function renderResults(conclusions){
+  resultsSection.hidden = false;
+  resultsList.innerHTML = '';
+
+  if (conclusions.length === 0){
+    resultsMeta.textContent = state.selected.size + ' symptom(s) reported — no rule cleared the confidence threshold.';
+    resultsList.innerHTML = '<div class="no-match glass"><p>No confident conclusion</p>' +
+      '<p class="no-match-sub">No rule in the set clears the confidence bar for this evidence. That is itself a finding — consult a physician for a proper evaluation.</p></div>';
+    triggerAIFallback();
+  } else {
+    resultsMeta.textContent = state.selected.size + ' symptom(s) reported — ' + conclusions.length + ' rule(s) fired, ranked by confidence.';
+    conclusions.forEach((c,i)=>{
+      const card = document.createElement('article');
+      card.className = 'case-card glass';
+      card.style.animationDelay = (i*70) + 'ms';
+
+      const matchedTags = Object.entries(c.matched).map(([s,w])=>
+        '<span class="tag matched">' + formatSymptom(s) + ' · ' + w.toFixed(2) + '</span>').join('');
+      const missingTags = Object.entries(c.missing).map(([s,w])=>
+        '<span class="tag missing">' + formatSymptom(s) + '</span>').join('');
+
+      card.innerHTML =
+        '<div class="case-card-head">' +
+          '<span class="case-num">CASE ' + String(i+1).padStart(2,'0') + '</span>' +
+          '<h3>' + c.disease + '</h3>' +
+          radialGauge(c.confidence) +
+        '</div>' +
+        '<p class="likelihood-label">' + likelihoodLabel(c.confidence) + '</p>' +
+        '<div class="evidence-row"><span class="evidence-label">Matched evidence</span><div class="tags">' + matchedTags + '</div></div>' +
+        '<button type="button" class="why-toggle">Why this rule fired ▾</button>' +
+        '<div class="why-body" hidden>' +
+          (missingTags ? '<div class="evidence-row"><span class="evidence-label">Typical, but not reported</span><div class="tags">' + missingTags + '</div></div>' : '') +
+          '<p class="formula">confidence = ' + c.matchedWeight.toFixed(2) + ' ÷ ' + c.totalWeight.toFixed(2) + ' = ' + c.confidence.toFixed(2) + '</p>' +
+        '</div>' +
+        '<p class="advice"><span class="advice-label">Suggested next step — </span>' + c.advice + '</p>';
+
+      const why = card.querySelector('.why-toggle');
+      const whyBody = card.querySelector('.why-body');
+      why.addEventListener('click', ()=>{
+        const isHidden = whyBody.hidden;
+        whyBody.hidden = !isHidden;
+        why.textContent = isHidden ? 'Why this rule fired ▴' : 'Why this rule fired ▾';
+      });
+
+      resultsList.appendChild(card);
+    });
+  }
+  if (typeof resultsSection.scrollIntoView === 'function'){
+    resultsSection.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
+// =============================================================
+// KNOWLEDGE BASE DISCLOSURE
+// =============================================================
+const kbToggle = document.getElementById('kbToggle');
+const kbBody = document.getElementById('kbBody');
+document.getElementById('kbCount').textContent = Object.keys(KNOWLEDGE_BASE).length;
+
+function buildKbTable(){
+  let rows = '';
+  Object.entries(KNOWLEDGE_BASE).forEach(([disease, rule])=>{
+    const symptomList = Object.entries(rule.symptoms).sort((a,b)=>b[1]-a[1])
+      .map(([s,w])=> formatSymptom(s) + ' (' + w.toFixed(2) + ')').join(', ');
+    rows += '<tr><td>' + disease + '</td><td>' + symptomList + '</td></tr>';
+  });
+  kbBody.innerHTML = '<div class="glass" style="padding:22px;"><table class="kb-table"><thead><tr><th>Rule (disease)</th><th>IF symptom (weight) …</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<p class="kb-note">A rule fires when at least ' + MIN_MATCHED_SYMPTOMS + ' of its symptoms are present AND confidence ≥ ' + CONFIDENCE_THRESHOLD + '.</p></div>';
+}
+buildKbTable();
+
+kbToggle.addEventListener('click', ()=>{
+  const expanded = kbToggle.getAttribute('aria-expanded') === 'true';
+  kbToggle.setAttribute('aria-expanded', String(!expanded));
+  kbBody.hidden = expanded;
+});
+
+// =============================================================
+// INIT
+// =============================================================
+renderChipGrid();
+renderSelected();
+</script>
+</body>
+</html>

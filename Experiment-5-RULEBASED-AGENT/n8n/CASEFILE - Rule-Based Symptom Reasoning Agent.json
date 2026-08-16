@@ -1,0 +1,596 @@
+{
+  "name": "CASEFILE - Rule-Based Symptom Reasoning Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "CASEFILE Symptom Intake",
+        "formDescription": "Check every symptom the patient is currently experiencing, then submit. A rule-based agent reasons over a 10-disease knowledge base and returns ranked, explained conclusions.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Which symptoms is the patient experiencing?",
+              "fieldType": "checkbox",
+              "fieldName": "symptoms",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Body ache"
+                  },
+                  {
+                    "option": "Chest tightness"
+                  },
+                  {
+                    "option": "Chills"
+                  },
+                  {
+                    "option": "Constipation"
+                  },
+                  {
+                    "option": "Cough"
+                  },
+                  {
+                    "option": "Diarrhea"
+                  },
+                  {
+                    "option": "Difficulty breathing"
+                  },
+                  {
+                    "option": "Dry cough"
+                  },
+                  {
+                    "option": "Fatigue"
+                  },
+                  {
+                    "option": "Fever"
+                  },
+                  {
+                    "option": "Headache"
+                  },
+                  {
+                    "option": "High fever"
+                  },
+                  {
+                    "option": "Itchy rash"
+                  },
+                  {
+                    "option": "Joint pain"
+                  },
+                  {
+                    "option": "Loss of appetite"
+                  },
+                  {
+                    "option": "Loss of taste or smell"
+                  },
+                  {
+                    "option": "Mild cough"
+                  },
+                  {
+                    "option": "Mild fever"
+                  },
+                  {
+                    "option": "Mild headache"
+                  },
+                  {
+                    "option": "Muscle pain"
+                  },
+                  {
+                    "option": "Nasal congestion"
+                  },
+                  {
+                    "option": "Nausea"
+                  },
+                  {
+                    "option": "Pain behind eyes"
+                  },
+                  {
+                    "option": "Prolonged fever"
+                  },
+                  {
+                    "option": "Runny nose"
+                  },
+                  {
+                    "option": "Sensitivity to light"
+                  },
+                  {
+                    "option": "Sensitivity to sound"
+                  },
+                  {
+                    "option": "Severe headache"
+                  },
+                  {
+                    "option": "Skin rash"
+                  },
+                  {
+                    "option": "Sneezing"
+                  },
+                  {
+                    "option": "Sore throat"
+                  },
+                  {
+                    "option": "Stomach cramps"
+                  },
+                  {
+                    "option": "Stomach pain"
+                  },
+                  {
+                    "option": "Sweating"
+                  },
+                  {
+                    "option": "Visual disturbance"
+                  },
+                  {
+                    "option": "Vomiting"
+                  },
+                  {
+                    "option": "Weakness"
+                  },
+                  {
+                    "option": "Wheezing"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false,
+          "buttonLabel": "Run inference"
+        }
+      },
+      "id": "49647cc4-c667-48f4-a9d9-e486fde3760e",
+      "name": "Patient Symptom Intake",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        464
+      ],
+      "webhookId": "21871871-9202-4f49-8f55-a4764edcd7a1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const labelToKey = {\"Body ache\":\"body_ache\",\"Chest tightness\":\"chest_tightness\",\"Chills\":\"chills\",\"Constipation\":\"constipation\",\"Cough\":\"cough\",\"Diarrhea\":\"diarrhea\",\"Difficulty breathing\":\"difficulty_breathing\",\"Dry cough\":\"dry_cough\",\"Fatigue\":\"fatigue\",\"Fever\":\"fever\",\"Headache\":\"headache\",\"High fever\":\"high_fever\",\"Itchy rash\":\"itchy_rash\",\"Joint pain\":\"joint_pain\",\"Loss of appetite\":\"loss_of_appetite\",\"Loss of taste or smell\":\"loss_of_taste_smell\",\"Mild cough\":\"mild_cough\",\"Mild fever\":\"mild_fever\",\"Mild headache\":\"mild_headache\",\"Muscle pain\":\"muscle_pain\",\"Nasal congestion\":\"nasal_congestion\",\"Nausea\":\"nausea\",\"Pain behind eyes\":\"pain_behind_eyes\",\"Prolonged fever\":\"prolonged_fever\",\"Runny nose\":\"runny_nose\",\"Sensitivity to light\":\"sensitivity_to_light\",\"Sensitivity to sound\":\"sensitivity_to_sound\",\"Severe headache\":\"severe_headache\",\"Skin rash\":\"skin_rash\",\"Sneezing\":\"sneezing\",\"Sore throat\":\"sore_throat\",\"Stomach cramps\":\"stomach_cramps\",\"Stomach pain\":\"stomach_pain\",\"Sweating\":\"sweating\",\"Visual disturbance\":\"visual_disturbance\",\"Vomiting\":\"vomiting\",\"Weakness\":\"weakness\",\"Wheezing\":\"wheezing\"};\nconst raw = $json.symptoms;\nlet labels = [];\nif (Array.isArray(raw)) { labels = raw; }\nelse if (typeof raw === \"string\" && raw.length) { labels = raw.split(\",\").map(function(s){ return s.trim(); }); }\nconst symptoms = labels.map(function(l){ return labelToKey[l] || l.toLowerCase().replace(/\\s+/g,\"_\"); });\nreturn [{ json: { symptoms: symptoms, results: [] } }];"
+      },
+      "id": "b2a8e201-0485-4d15-83f7-490047bbccc0",
+      "name": "Normalize Symptoms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Common Cold\",\"symptoms\":{\"runny_nose\":0.9,\"sneezing\":0.85,\"sore_throat\":0.6,\"mild_cough\":0.6,\"nasal_congestion\":0.8,\"mild_headache\":0.3},\"advice\":\"Usually self-limiting. Rest, fluids, and OTC cold relief are typically enough.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "367c08a4-2fcf-4fe7-8dc0-dff5b87dd6a0",
+      "name": "Rule - Common Cold",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Influenza (Flu)\",\"symptoms\":{\"high_fever\":0.85,\"body_ache\":0.9,\"fatigue\":0.8,\"chills\":0.75,\"headache\":0.6,\"dry_cough\":0.65,\"sore_throat\":0.4},\"advice\":\"Rest and fluids; see a doctor if fever is very high or lasts more than a few days.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "50352891-f436-409d-b383-40dbdf347e37",
+      "name": "Rule - Influenza (Flu)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"COVID-19\",\"symptoms\":{\"fever\":0.7,\"dry_cough\":0.75,\"fatigue\":0.7,\"loss_of_taste_smell\":0.9,\"difficulty_breathing\":0.7,\"sore_throat\":0.4,\"body_ache\":0.5},\"advice\":\"Isolate, get tested, and seek prompt medical care if breathing becomes difficult.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "39e7d4c7-29f0-49d2-b0b0-415285d19ce5",
+      "name": "Rule - COVID-19",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Malaria\",\"symptoms\":{\"high_fever\":0.85,\"chills\":0.85,\"sweating\":0.8,\"headache\":0.6,\"nausea\":0.55,\"muscle_pain\":0.5,\"fatigue\":0.5},\"advice\":\"Needs a blood test to confirm. See a doctor promptly, especially in endemic areas.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "c28f5391-edaa-43c8-923a-793321dea162",
+      "name": "Rule - Malaria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Typhoid Fever\",\"symptoms\":{\"prolonged_fever\":0.9,\"weakness\":0.7,\"stomach_pain\":0.65,\"headache\":0.55,\"loss_of_appetite\":0.6,\"constipation\":0.4,\"diarrhea\":0.4},\"advice\":\"Requires lab confirmation and antibiotics prescribed by a physician.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "ecd4b9f0-69b6-40f7-9f88-020dd093c5ec",
+      "name": "Rule - Typhoid Fever",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Dengue Fever\",\"symptoms\":{\"high_fever\":0.85,\"severe_headache\":0.75,\"joint_pain\":0.85,\"skin_rash\":0.6,\"nausea\":0.5,\"pain_behind_eyes\":0.8,\"muscle_pain\":0.6},\"advice\":\"Monitor for warning signs (bleeding, severe pain) and seek medical attention.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "ba6f4642-3962-4012-8a6b-0bab325c2d5c",
+      "name": "Rule - Dengue Fever",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Migraine\",\"symptoms\":{\"severe_headache\":0.9,\"nausea\":0.6,\"sensitivity_to_light\":0.85,\"sensitivity_to_sound\":0.75,\"visual_disturbance\":0.5},\"advice\":\"Rest in a dark, quiet room. See a doctor if this is a new or unusually severe pattern.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "5890a014-2a5b-42dd-b29d-ca36b6a9d1a9",
+      "name": "Rule - Migraine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Gastroenteritis\",\"symptoms\":{\"nausea\":0.75,\"vomiting\":0.8,\"diarrhea\":0.85,\"stomach_cramps\":0.75,\"mild_fever\":0.4},\"advice\":\"Stay hydrated with oral rehydration solution; see a doctor if it persists beyond 2 days.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "e0b51bcf-3d66-4706-a9f9-7528762dc777",
+      "name": "Rule - Gastroenteritis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Asthma\",\"symptoms\":{\"difficulty_breathing\":0.85,\"wheezing\":0.9,\"chest_tightness\":0.8,\"cough\":0.6},\"advice\":\"Use a prescribed inhaler if diagnosed; seek emergency care if breathing is severely impaired.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "152ba57c-f894-45e5-a904-9c614f900daa",
+      "name": "Rule - Asthma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symptoms = new Set($('Normalize Symptoms').item.json.symptoms);\nconst rule = {\"disease\":\"Chickenpox\",\"symptoms\":{\"itchy_rash\":0.9,\"fever\":0.5,\"fatigue\":0.4,\"loss_of_appetite\":0.4},\"advice\":\"Highly contagious - isolate the patient. See a doctor, especially for adults or high fever.\"};\nconst matched = {}; const missing = {};\nfor (const s in rule.symptoms) { if (symptoms.has(s)) { matched[s] = rule.symptoms[s]; } else { missing[s] = rule.symptoms[s]; } }\nconst matchedCount = Object.keys(matched).length;\nconst matchedWeight = Object.values(matched).reduce(function(a,b){ return a+b; }, 0);\nconst totalWeight = Object.values(rule.symptoms).reduce(function(a,b){ return a+b; }, 0);\nconst confidence = totalWeight > 0 ? matchedWeight/totalWeight : 0;\nconst fires = matchedCount >= 2 && confidence >= 0.30;\nconst previousResults = $json.results || [];\nconst thisResult = { disease: rule.disease, confidence: confidence, matchedCount: matchedCount, matched: matched, missing: missing, advice: rule.advice, fires: fires };\nreturn [{ json: { symptoms: Array.from(symptoms), results: previousResults.concat([thisResult]) } }];"
+      },
+      "id": "8f89e5c4-431d-4baf-a195-c441a24b458f",
+      "name": "Rule - Chickenpox",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3152,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $json.results;\nconst ranked = all.filter(function(r){ return r.fires; }).sort(function(a,b){ return b.confidence - a.confidence; });\nreturn [{ json: { symptoms: $json.symptoms, allResults: all, ranked: ranked, hasMatch: ranked.length > 0 } }];"
+      },
+      "id": "0e27ed8d-8c89-4725-bc86-2ac0a09dd1cd",
+      "name": "Rank and Filter by Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasMatch }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4406fb1d-6617-45dc-9120-e428a7d36059",
+      "name": "Any Confident Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1792,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ranked = $json.ranked;\nconst symptoms = $json.symptoms;\nlet text = \"Reported symptoms: \" + symptoms.join(\", \") + \"\\n\\n\";\nranked.slice(0,5).forEach(function(r, i){\n  const pct = Math.round(r.confidence*100);\n  const label = r.confidence >= 0.7 ? \"High likelihood\" : (r.confidence >= 0.5 ? \"Moderate likelihood\" : \"Low likelihood\");\n  text += (i+1) + \". \" + r.disease + \" - \" + label + \" (\" + pct + \"% match)\\n\";\n  text += \"   Matched: \" + Object.keys(r.matched).join(\", \") + \"\\n\";\n  text += \"   Advice: \" + r.advice + \"\\n\\n\";\n});\ntext += \"Not a diagnosis. Consult a physician for real symptoms.\";\nreturn [{ json: { displayText: text } }];"
+      },
+      "id": "42bc78cc-076a-4f75-9a1e-7ec738b672b0",
+      "name": "Format Ranked Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Reasoning complete",
+        "completionMessage": "={{ $json.displayText }}",
+        "options": {}
+      },
+      "id": "ff74e50a-6185-4d8b-a407-a41f85f6d41e",
+      "name": "Show Results",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        2816,
+        336
+      ],
+      "webhookId": "409b9fda-b8d9-4503-a8eb-ec86416fb66b"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "No confident conclusion",
+        "completionMessage": "={{ \"Reported symptoms: \" + $json.symptoms.join(\", \") + \"\\n\\nNo rule in the 10-disease knowledge base cleared the confidence threshold for this combination. That is itself a finding - consult a physician for a proper evaluation.\" }}",
+        "options": {}
+      },
+      "id": "387f4bab-9e3e-4bef-8f3c-1b27e80693a0",
+      "name": "Show No Match",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        2624,
+        560
+      ],
+      "webhookId": "dee95173-af4c-4344-85ba-f0d2b0e24a1a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Patient Symptom Intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize Symptoms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Symptoms": {
+      "main": [
+        [
+          {
+            "node": "Rule - Common Cold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Common Cold": {
+      "main": [
+        [
+          {
+            "node": "Rule - Influenza (Flu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Influenza (Flu)": {
+      "main": [
+        [
+          {
+            "node": "Rule - COVID-19",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - COVID-19": {
+      "main": [
+        [
+          {
+            "node": "Rule - Malaria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Malaria": {
+      "main": [
+        [
+          {
+            "node": "Rule - Typhoid Fever",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Typhoid Fever": {
+      "main": [
+        [
+          {
+            "node": "Rule - Dengue Fever",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Dengue Fever": {
+      "main": [
+        [
+          {
+            "node": "Rule - Migraine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Migraine": {
+      "main": [
+        [
+          {
+            "node": "Rule - Gastroenteritis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Gastroenteritis": {
+      "main": [
+        [
+          {
+            "node": "Rule - Asthma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Asthma": {
+      "main": [
+        [
+          {
+            "node": "Rule - Chickenpox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule - Chickenpox": {
+      "main": [
+        [
+          {
+            "node": "Rank and Filter by Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank and Filter by Confidence": {
+      "main": [
+        [
+          {
+            "node": "Any Confident Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Confident Match?": {
+      "main": [
+        [
+          {
+            "node": "Format Ranked Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show No Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Ranked Results": {
+      "main": [
+        [
+          {
+            "node": "Show Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1
+  },
+  "versionId": "58e5f26e-3072-4ccf-aba4-1486859e0c94",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "13829a2d3ae03cae9fdbb31fe8fa381a35c72f55ca90c8aec3e8d386235fb2a6"
+  },
+  "nodeGroups": [
+    {
+      "id": "c8792999-6c88-4631-8ea1-bc080855e350",
+      "name": "Rule Evaluation - 10 Independent Rules",
+      "nodeIds": [
+        "367c08a4-2fcf-4fe7-8dc0-dff5b87dd6a0",
+        "50352891-f436-409d-b383-40dbdf347e37",
+        "39e7d4c7-29f0-49d2-b0b0-415285d19ce5",
+        "c28f5391-edaa-43c8-923a-793321dea162",
+        "ecd4b9f0-69b6-40f7-9f88-020dd093c5ec",
+        "ba6f4642-3962-4012-8a6b-0bab325c2d5c",
+        "5890a014-2a5b-42dd-b29d-ca36b6a9d1a9",
+        "e0b51bcf-3d66-4706-a9f9-7528762dc777",
+        "152ba57c-f894-45e5-a904-9c614f900daa",
+        "8f89e5c4-431d-4baf-a195-c441a24b458f"
+      ]
+    }
+  ],
+  "id": "vX3q3gR1RQKBlWWN",
+  "tags": []
+}
